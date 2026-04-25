@@ -392,14 +392,14 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
       if (bannerProvider === 'flux') {
         const { buffer, mime } = await Promise.race([
           generateImageWithFlux(prompt, fmt.width || 1080, fmt.height || 1080, fluxApiKey, fluxModel),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 120s')), 120000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 300s')), 300000)),
         ]);
         imageBuffer = buffer;
         imageMime = mime;
       } else if (bannerProvider === 'openai') {
         const { buffer, mime } = await Promise.race([
           generateImageWithOpenAI(prompt, fmt.orientation, openAiKey, openaiModel),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 120s')), 120000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 300s')), 300000)),
         ]);
         imageBuffer = buffer;
         imageMime = mime;
