@@ -375,9 +375,9 @@ export default function NewCreative() {
             <p className="section-title">Gerador de banners PNG</p>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { value: 'gemini', label: 'Gemini',  desc: 'Google AI' },
-                { value: 'openai', label: 'OpenAI',  desc: 'gpt-image-1' },
-                { value: 'flux',   label: 'Flux',    desc: 'Black Forest Labs' },
+                { value: 'gemini', label: 'Gemini', desc: 'Google AI' },
+                { value: 'openai', label: 'OpenAI', desc: form.openai_model || 'gpt-image-2' },
+                { value: 'flux',   label: 'Flux',   desc: FLUX_MODELS.find(m => m.value === form.flux_model)?.label || form.flux_model || 'FLUX.2 Pro' },
               ].map(({ value, label, desc }) => (
                 <button
                   type="button"
