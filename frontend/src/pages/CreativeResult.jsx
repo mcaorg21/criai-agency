@@ -37,7 +37,7 @@ function MarkdownBlock({ text }) {
   );
 }
 
-function BannersTab({ banners, bannerGenerating, bannerStatus, bannerError, bannersLoading, bannerFailed, bannerFailedMsg, onGenerate }) {
+function BannersTab({ banners, bannerErrors, bannerGenerating, bannerStatus, bannerError, bannersLoading, bannerFailed, bannerFailedMsg, onGenerate }) {
   const aspectClass = {
     square:    'aspect-square',
     vertical:  'aspect-[9/16]',
@@ -113,6 +113,18 @@ function BannersTab({ banners, bannerGenerating, bannerStatus, bannerError, bann
               </div>
             ))}
           </div>
+
+          {bannerErrors?.length > 0 && (
+            <div className="space-y-1.5 mt-2">
+              <p className="text-xs text-gray-500 font-medium">Formatos com erro:</p>
+              {bannerErrors.map((e, i) => (
+                <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <span className="text-red-400 text-xs shrink-0 mt-0.5">✗ {e.label}</span>
+                  <span className="text-red-400/80 text-xs break-all">{e.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -359,7 +371,15 @@ export default function CreativeResult() {
         setBannerGenerating(false);
         setBannerStatus('');
         bannerSseRef.current = null;
-        setCreative((c) => ({ ...c, result_json: { ...c.result_json, banners: data.banners } }));
+        setCreative((c) => ({
+          ...c,
+          result_json: {
+            ...c.result_json,
+            banners: data.banners,
+            bannerErrors: data.bannerErrors?.length ? data.bannerErrors : undefined,
+            bannerGenerationStatus: 'done',
+          },
+        }));
       },
       (msg) => {
         setBannerGenerating(false);
@@ -497,6 +517,7 @@ export default function CreativeResult() {
             {activeTab === 'banners' ? (
               <BannersTab
                 banners={results.banners}
+                bannerErrors={results.bannerErrors}
                 bannerGenerating={bannerGenerating}
                 bannerStatus={bannerStatus}
                 bannerError={bannerError}

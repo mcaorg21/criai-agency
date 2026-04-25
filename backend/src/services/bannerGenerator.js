@@ -360,6 +360,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
   const useGcs = await isGcsConfigured();
 
   const banners = [];
+  const errors = [];
   const copyVariation = parsedCopies[0];
   const total = formats.length;
 
@@ -445,9 +446,10 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
       });
     } catch (err) {
       console.error(`Erro banner ${fmt.label}:`, err.message);
+      errors.push({ label: fmt.label, message: err.message });
       onStep?.('banner-error', `Erro no formato ${fmt.label}: ${err.message}`);
     }
   }
 
-  return banners;
+  return { banners, errors };
 }

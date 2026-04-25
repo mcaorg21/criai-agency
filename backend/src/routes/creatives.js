@@ -78,7 +78,7 @@ async function runBannerGeneration(creativeId, results, row) {
       ? row.selected_colors
       : (row.color_palette ? row.color_palette.split(',').map(s => s.trim()).filter(Boolean) : []);
 
-    const banners = await generateBanners({
+    const { banners, errors } = await generateBanners({
       creativeId,
       copies: results.copies,
       channelAdaptations: results.channelAdaptations,
@@ -95,12 +95,12 @@ async function runBannerGeneration(creativeId, results, row) {
     });
 
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
-    const updated = { ...(current.rows[0]?.result_json || {}), banners, bannerGenerationStatus: 'done' };
+    const updated = { ...(current.rows[0]?.result_json || {}), banners, bannerErrors: errors.length ? errors : undefined, bannerGenerationStatus: 'done' };
     await pool.query(
       `UPDATE creatives SET result_json=$1, updated_at=NOW() WHERE id=$2`,
       [JSON.stringify(updated), creativeId]
     );
-    console.log(`Banners do criativo ${creativeId} gerados: ${banners.length}`);
+    console.log(`Banners do criativo ${creativeId} gerados: ${banners.length}${errors.length ? `, ${errors.length} com erro` : ''}`);
   } catch (err) {
     console.error(`Erro ao gerar banners do criativo ${creativeId}:`, err.message);
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
@@ -163,7 +163,7 @@ router.get('/:id/generate-banners', async (req, res) => {
     send('status', { step: 'banner-generator', message: 'Iniciando geração de banners...' });
 
     const { generateBanners } = await import('../services/bannerGenerator.js');
-    const banners = await Promise.race([
+    const { banners, errors } = await Promise.race([
       generateBanners({
         creativeId: req.params.id,
         copies: row.result_json.copies,
@@ -182,10 +182,10 @@ router.get('/:id/generate-banners', async (req, res) => {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na geração de banners')), 180000)),
     ]);
 
-    const updated = { ...row.result_json, banners };
+    const updated = { ...row.result_json, banners, bannerErrors: errors.length ? errors : undefined, bannerGenerationStatus: 'done' };
     await pool.query(`UPDATE creatives SET result_json=$1, updated_at=NOW() WHERE id=$2`, [JSON.stringify(updated), req.params.id]);
 
-    send('done', { banners });
+    send('done', { banners, bannerErrors: errors });
   } catch (err) {
     console.error(err);
     send('error', { message: err.message });
