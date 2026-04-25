@@ -180,14 +180,30 @@ function BannerHtmlBlock({ label, html }) {
   );
 }
 
-function BannerRendererTab({ text }) {
-  if (!text) return <p className="text-gray-500 text-sm italic">Não gerado.</p>;
+function extractHtml(raw) {
+  if (!raw) return '';
+  // Strip markdown code fences if present
+  const m = raw.match(/```(?:html)?\s*([\s\S]*?)```/i);
+  return m ? m[1].trim() : raw.trim();
+}
 
-  // Extract labelled HTML blocks from markdown code fences
-  const blocks = [];
-  const re = /(?:#{1,6}\s*([^\n]+)\n[\s\S]*?)?```(?:html)?\n([\s\S]*?)```/gi;
-  let match;
-  // First pass: collect all heading+code pairs
+function BannerRendererTab({ data }) {
+  if (!data) return <p className="text-gray-500 text-sm italic">Não gerado.</p>;
+
+  // New format: array of { label, width, height, html }
+  if (Array.isArray(data)) {
+    if (!data.length) return <p className="text-gray-500 text-sm italic">Nenhum formato gerado.</p>;
+    return (
+      <div className="space-y-6">
+        {data.map((item, i) => (
+          <BannerHtmlBlock key={i} label={item.label} html={extractHtml(item.html)} />
+        ))}
+      </div>
+    );
+  }
+
+  // Legacy format: single string with #### headings + ```html blocks
+  const text = data;
   const headingRe = /#{1,6}\s*([^\n]+)/g;
   const codeRe = /```(?:html)?\n([\s\S]*?)```/g;
   const headings = [];
@@ -196,13 +212,12 @@ function BannerRendererTab({ text }) {
   while ((hm = headingRe.exec(text)) !== null) headings.push({ index: hm.index, label: hm[1].trim() });
   while ((cm = codeRe.exec(text)) !== null) codes.push({ index: cm.index, html: cm[1].trim() });
 
+  const blocks = [];
   for (let i = 0; i < codes.length; i++) {
     const code = codes[i];
     if (code.html.length < 50) continue;
-    // Find the closest heading before this code block
     const preceding = headings.filter(h => h.index < code.index).pop();
-    const label = preceding?.label || `Banner ${i + 1}`;
-    blocks.push({ label, html: code.html });
+    blocks.push({ label: preceding?.label || `Banner ${i + 1}`, html: code.html });
   }
 
   if (!blocks.length) return <MarkdownBlock text={text} />;
@@ -529,7 +544,7 @@ export default function CreativeResult() {
             ) : activeTab === 'emailHtml' ? (
               <HtmlPreview html={results.emailHtml} />
             ) : activeTab === 'bannerRenderer' ? (
-              <BannerRendererTab text={results.bannerRenderer} />
+              <BannerRendererTab data={results.bannerRenderer} />
             ) : (
               <>
                 <div className="flex justify-end mb-3">

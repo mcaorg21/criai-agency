@@ -130,68 +130,62 @@ export async function generateCreative({ client: clientData, brief, onStep, chan
     `Com base nas copies abaixo, defina a estrutura visual de cada criativo:\n\n${results.copies}`
   );
 
-  // Etapa 4 – Banner Renderer (templates HTML/CSS por formato)
+  // Etapa 4 – Banner Renderer (templates HTML/CSS por formato — uma call por formato em paralelo)
   onStep?.('display-banner-renderer', 'Criando templates HTML dos banners...');
   const bannerFormats = getBannerFormats(channels);
 
-  const bannerInput = JSON.stringify({
-    brand: {
-      name: clientData.brand_name,
-      logo_url: clientData.logo_url || null,
-      colors: {
-        primary:    activeColors[0] || '#1a1a2e',
-        secondary:  activeColors[1] || '#ffffff',
-        accent:     activeColors[2] || activeColors[1] || '#e85d04',
-        background: activeColors[3] || activeColors[0] || '#1a1a2e',
-      },
-      font: 'Inter',
-    },
-    campaign: {
-      objective: brief.campaign_objective,
-      audience:  brief.target_audience,
-      tone:      brief.desired_tone,
-    },
-    creative: {
-      headline:    '(extrair das copies aprovadas abaixo)',
-      subheadline: '(extrair das copies aprovadas abaixo)',
-      description: '(extrair das copies aprovadas abaixo)',
-      cta:         '(extrair das copies aprovadas abaixo)',
-    },
-    formats: bannerFormats.map(f => ({
-      name:   `${f.channel.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${f.width}x${f.height}`,
-      width:  f.width,
-      height: f.height,
-    })),
-  }, null, 2);
+  const brandColors = {
+    primary:    activeColors[0] || '#1a1a2e',
+    secondary:  activeColors[1] || '#ffffff',
+    accent:     activeColors[2] || activeColors[1] || '#e85d04',
+    background: activeColors[3] || activeColors[0] || '#1a1a2e',
+  };
 
-  results.bannerRenderer = await runSkill(
-    'display-banner-renderer',
-    `${brandContext}\n${briefContext}`,
-    `Gere templates HTML/CSS completos para cada formato de banner abaixo.
+  const bannerRendererResults = await Promise.all(
+    bannerFormats.map(async (fmt) => {
+      const fmtInput = JSON.stringify({
+        brand: {
+          name:    clientData.brand_name,
+          logo_url: clientData.logo_url || null,
+          colors:  brandColors,
+          font:    'Inter',
+        },
+        campaign: {
+          objective: brief.campaign_objective,
+          audience:  brief.target_audience,
+          tone:      brief.desired_tone,
+        },
+        formats: [{ name: `${fmt.channel.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${fmt.width}x${fmt.height}`, width: fmt.width, height: fmt.height }],
+      }, null, 2);
+
+      const html = await runSkill(
+        'display-banner-renderer',
+        `${brandContext}\n${briefContext}`,
+        `Gere um template HTML/CSS completo para o formato: ${fmt.channel} ${fmt.label}
 
 ## Input
 \`\`\`json
-${bannerInput}
+${fmtInput}
 \`\`\`
 
-## Copies aprovadas (extraia headline, subheadline, description e CTA deste texto)
+## Copies aprovadas (extraia headline, subheadline, description e CTA)
 ${results.copies}
 
-## Estrutura visual (Display Creative Formatter)
+## Estrutura visual
 ${results.visualFormat}
 
----
-## INSTRUÇÕES DE SAÍDA — siga rigorosamente para todos os ${bannerFormats.length} formato(s):
-1. Escreva o heading: #### [nome do canal] [dimensões] (ex: #### Instagram Feed 1080×1080)
-2. Escreva o HTML completo em bloco \`\`\`html imediatamente abaixo
-3. \`width\` e \`height\` fixos em pixels exatamente conforme o formato
-4. CSS inline ou \`<style>\` interno — zero dependências externas
-5. Textos reais em português extraídos das copies — nunca placeholder
-6. Aplique as regras de layout da skill (quadrado / horizontal / vertical / retângulo) conforme o aspect ratio
-7. Ao terminar um formato, inicie o próximo imediatamente com ####
-8. Não pule nenhum dos ${bannerFormats.length} formato(s)`,
-    { maxTokens: 8192 }
+## INSTRUÇÕES:
+- Retorne APENAS o HTML completo (sem heading, sem explicação, só o bloco \`\`\`html ... \`\`\`)
+- width=${fmt.width}px height=${fmt.height}px fixos
+- CSS inline ou <style> interno — zero dependências externas
+- Textos reais em português extraídos das copies — nunca placeholder`,
+        { maxTokens: 4096 }
+      );
+      return { label: `${fmt.channel} ${fmt.label}`, width: fmt.width, height: fmt.height, html };
+    })
   );
+
+  results.bannerRenderer = bannerRendererResults;
 
   // Etapa 5 – Adaptação por canal
   onStep?.('multi-channel-adapter', 'Adaptando para cada canal...');
