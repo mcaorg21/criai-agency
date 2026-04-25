@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 
+const OPENAI_MODELS = [
+  { value: 'gpt-image-2', label: 'gpt-image-2', desc: 'Mais recente · Alta qualidade' },
+  { value: 'gpt-image-1', label: 'gpt-image-1', desc: 'Versão anterior' },
+];
+
 const FLUX_MODELS = [
   { value: 'flux-2-klein-4b',    label: 'FLUX.2 Klein 4B',    price: '$0.014/MP', cost: 'Barato',     color: 'text-emerald-400' },
   { value: 'flux-2-klein-9b',    label: 'FLUX.2 Klein 9B',    price: '$0.015/MP', cost: 'Barato',     color: 'text-emerald-400' },
@@ -54,6 +59,7 @@ export default function EditCreative() {
         email_utm_campaign: c.email_utm_campaign || '',
         banner_provider: c.banner_provider || 'gemini',
         flux_model: c.flux_model || 'flux-2-pro',
+        openai_model: c.openai_model || 'gpt-image-2',
         brand_name: c.brand_name,
         all_colors: allColors,
         client_id: c.client_id,
@@ -91,6 +97,7 @@ export default function EditCreative() {
         selected_logo_url: selectedLogoUrl || null,
         banner_provider: form.banner_provider,
         flux_model: form.banner_provider === 'flux' ? form.flux_model : null,
+        openai_model: form.banner_provider === 'openai' ? form.openai_model : null,
       });
       navigate(`/creatives/${id}`);
     } catch (err) {
@@ -310,6 +317,31 @@ export default function EditCreative() {
                 </button>
               ))}
             </div>
+
+            {form.banner_provider === 'openai' && (
+              <div>
+                <p className="text-xs text-gray-500 mb-2">Modelo OpenAI</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {OPENAI_MODELS.map(m => (
+                    <button
+                      type="button"
+                      key={m.value}
+                      onClick={() => setForm(f => ({ ...f, openai_model: m.value }))}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg border text-left transition-all ${
+                        form.openai_model === m.value
+                          ? 'bg-brand-500/10 border-brand-500'
+                          : 'border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <span className={`text-sm font-medium ${form.openai_model === m.value ? 'text-brand-400' : 'text-gray-300'}`}>
+                        {m.label}
+                      </span>
+                      <span className="text-xs text-gray-500">{m.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {form.banner_provider === 'flux' && (
               <div>

@@ -91,6 +91,7 @@ async function runBannerGeneration(creativeId, results, row) {
       observations: row.observations || null,
       bannerProvider: row.banner_provider || 'gemini',
       fluxModel: row.flux_model || null,
+      openaiModel: row.openai_model || 'gpt-image-2',
     });
 
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
@@ -176,6 +177,7 @@ router.get('/:id/generate-banners', async (req, res) => {
         observations: row.observations || null,
         bannerProvider: row.banner_provider || 'gemini',
         fluxModel: row.flux_model || null,
+        openaiModel: row.openai_model || 'gpt-image-2',
         onStep: (step, message) => send('status', { step, message }),
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na geração de banners')), 180000)),
@@ -220,15 +222,15 @@ router.post('/:id/cancel', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model } = req.body;
+  const { target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model } = req.body;
   const result = await pool.query(
     `UPDATE creatives SET target_audience=$1, campaign_objective=$2, main_offer=$3,
      desired_tone=$4, channels=$5, observations=$6, use_logo=$7, selected_colors=$8,
      simulate_audience=$9, email_unsubscribe_footer=$10, email_utm_source=$11,
      email_utm_medium=$12, email_utm_campaign=$13, selected_logo_url=$14,
-     banner_provider=$15, flux_model=$16, status='pending', result_json=NULL, updated_at=NOW()
-     WHERE id=$17 RETURNING *`,
-    [target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, selected_logo_url || null, banner_provider || 'gemini', flux_model || null, req.params.id]
+     banner_provider=$15, flux_model=$16, openai_model=$17, status='pending', result_json=NULL, updated_at=NOW()
+     WHERE id=$18 RETURNING *`,
+    [target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, selected_logo_url || null, banner_provider || 'gemini', flux_model || null, openai_model || 'gpt-image-2', req.params.id]
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Criativo não encontrado' });
   res.json(result.rows[0]);
@@ -238,13 +240,13 @@ router.put('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model } = req.body;
+  const { client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model } = req.body;
   if (!client_id) return res.status(400).json({ error: 'client_id é obrigatório' });
 
   const result = await pool.query(
-    `INSERT INTO creatives (client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
-    [client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, selected_logo_url || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, banner_provider || 'gemini', flux_model || null]
+    `INSERT INTO creatives (client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+    [client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, selected_logo_url || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, banner_provider || 'gemini', flux_model || null, openai_model || 'gpt-image-2']
   );
   const creative = result.rows[0];
   res.status(201).json(creative);

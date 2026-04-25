@@ -179,12 +179,12 @@ function openAiSize(orientation) {
   return '1536x1024'; // landscape e leaderboard
 }
 
-async function generateImageWithOpenAI(prompt, orientation, apiKey) {
+async function generateImageWithOpenAI(prompt, orientation, apiKey, model = 'gpt-image-2') {
   const res = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-image-1',
+      model,
       prompt,
       size: openAiSize(orientation),
       quality: 'high',
@@ -288,7 +288,7 @@ TEXT TO RENDER ON BANNER — copy these strings EXACTLY, character by character,
 IMPORTANT: The texts above are in Brazilian Portuguese. Render them verbatim with correct spelling. Do not translate or modify any word.`;
 }
 
-export async function generateBanners({ creativeId, copies, channelAdaptations, channels, brandName, colors, productService, tone, logoUrl, observations, onStep, bannerProvider = 'gemini', fluxModel: fluxModelOverride }) {
+export async function generateBanners({ creativeId, copies, channelAdaptations, channels, brandName, colors, productService, tone, logoUrl, observations, onStep, bannerProvider = 'gemini', fluxModel: fluxModelOverride, openaiModel = 'gpt-image-2' }) {
   // Resolve provider credentials
   let geminiApiKey = null;
   let fluxApiKey = null;
@@ -390,7 +390,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
         imageMime = mime;
       } else if (bannerProvider === 'openai') {
         const { buffer, mime } = await Promise.race([
-          generateImageWithOpenAI(prompt, fmt.orientation, openAiKey),
+          generateImageWithOpenAI(prompt, fmt.orientation, openAiKey, openaiModel),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 120s')), 120000)),
         ]);
         imageBuffer = buffer;
