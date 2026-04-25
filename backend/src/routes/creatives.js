@@ -53,10 +53,10 @@ async function runGeneration(creativeId) {
       onStep: (step) => setStep(step),
     });
 
-    // Salva criativo como done (sem banners ainda)
+    // Salva criativo como done — bannerGenerationStatus='pending' indica que a geração de banners está em andamento
     await pool.query(
       `UPDATE creatives SET status='done', current_step='done', result_json=$1, updated_at=NOW() WHERE id=$2`,
-      [JSON.stringify({ ...results, banners: null }), creativeId]
+      [JSON.stringify({ ...results, banners: null, bannerGenerationStatus: 'pending' }), creativeId]
     );
 
     console.log(`Criativo ${creativeId} gerado com sucesso. Iniciando banners em background...`);
@@ -95,7 +95,7 @@ async function runBannerGeneration(creativeId, results, row) {
     });
 
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
-    const updated = { ...(current.rows[0]?.result_json || {}), banners };
+    const updated = { ...(current.rows[0]?.result_json || {}), banners, bannerGenerationStatus: 'done' };
     await pool.query(
       `UPDATE creatives SET result_json=$1, updated_at=NOW() WHERE id=$2`,
       [JSON.stringify(updated), creativeId]
@@ -103,9 +103,8 @@ async function runBannerGeneration(creativeId, results, row) {
     console.log(`Banners do criativo ${creativeId} gerados: ${banners.length}`);
   } catch (err) {
     console.error(`Erro ao gerar banners do criativo ${creativeId}:`, err.message);
-    // Marca banners como [] para indicar que falhou (não null)
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
-    const updated = { ...(current.rows[0]?.result_json || {}), banners: [] };
+    const updated = { ...(current.rows[0]?.result_json || {}), banners: [], bannerGenerationStatus: 'failed', bannerError: err.message };
     await pool.query(`UPDATE creatives SET result_json=$1 WHERE id=$2`, [JSON.stringify(updated), creativeId]);
   }
 }

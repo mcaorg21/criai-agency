@@ -37,7 +37,7 @@ function MarkdownBlock({ text }) {
   );
 }
 
-function BannersTab({ banners, bannerGenerating, bannerStatus, bannerError, bannersLoading, onGenerate }) {
+function BannersTab({ banners, bannerGenerating, bannerStatus, bannerError, bannersLoading, bannerFailed, bannerFailedMsg, onGenerate }) {
   const aspectClass = {
     square:    'aspect-square',
     vertical:  'aspect-[9/16]',
@@ -52,20 +52,31 @@ function BannersTab({ banners, bannerGenerating, bannerStatus, bannerError, bann
           <span className="text-sm text-brand-400 animate-pulse">Gerando banners em background...</span>
         </div>
       ) : (
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onGenerate}
-            disabled={bannerGenerating}
-            className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {bannerGenerating ? '⏳ Gerando...' : banners?.length ? '↺ Regenerar Banners' : '✦ Gerar Banners'}
-          </button>
-          {bannerGenerating && bannerStatus && (
-            <span className="text-xs text-brand-400 animate-pulse">{bannerStatus}</span>
+        <div className="flex flex-col gap-2">
+          {bannerFailed && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30">
+              <span className="text-red-400 text-xs mt-0.5">✗</span>
+              <div>
+                <p className="text-red-400 text-xs font-medium">Geração automática falhou</p>
+                {bannerFailedMsg && <p className="text-red-400/70 text-xs mt-0.5">{bannerFailedMsg}</p>}
+              </div>
+            </div>
           )}
-          {!bannerGenerating && bannerError && (
-            <span className="text-xs text-red-400">{bannerError}</span>
-          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onGenerate}
+              disabled={bannerGenerating}
+              className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bannerGenerating ? '⏳ Gerando...' : banners?.length ? '↺ Regenerar Banners' : '✦ Gerar Banners'}
+            </button>
+            {bannerGenerating && bannerStatus && (
+              <span className="text-xs text-brand-400 animate-pulse">{bannerStatus}</span>
+            )}
+            {!bannerGenerating && bannerError && (
+              <span className="text-xs text-red-400">{bannerError}</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -292,8 +303,8 @@ export default function CreativeResult() {
     bannerIntervalRef.current = setInterval(async () => {
       const updated = await api.creatives.get(id).catch(() => null);
       if (!updated) return;
-      const banners = updated.result_json?.banners;
-      if (banners !== undefined && banners !== null) {
+      const status = updated.result_json?.bannerGenerationStatus;
+      if (status && status !== 'pending') {
         clearInterval(bannerIntervalRef.current);
         bannerIntervalRef.current = null;
         setBannersLoading(false);
@@ -315,7 +326,7 @@ export default function CreativeResult() {
             clearInterval(creativeIntervalRef.current);
             creativeIntervalRef.current = null;
             setGenerating(false);
-            if (updated.result_json?.banners === null) startBannerPoll();
+            if (updated.result_json?.bannerGenerationStatus === 'pending') startBannerPoll();
           } else if (updated.status === 'error' || updated.status === 'cancelled') {
             clearInterval(creativeIntervalRef.current);
             creativeIntervalRef.current = null;
@@ -323,7 +334,7 @@ export default function CreativeResult() {
             if (updated.status === 'error') setError('Ocorreu um erro na geração. Tente editar e gerar novamente.');
           }
         }, 3000);
-      } else if (c.status === 'done' && c.result_json?.banners === null) {
+      } else if (c.status === 'done' && c.result_json?.bannerGenerationStatus === 'pending') {
         startBannerPoll();
       }
     }).catch(() => setError('Criativo não encontrado'));
@@ -490,6 +501,8 @@ export default function CreativeResult() {
                 bannerStatus={bannerStatus}
                 bannerError={bannerError}
                 bannersLoading={bannersLoading}
+                bannerFailed={results.bannerGenerationStatus === 'failed'}
+                bannerFailedMsg={results.bannerError}
                 onGenerate={startBannerGeneration}
               />
             ) : activeTab === 'emailHtml' ? (

@@ -172,24 +172,31 @@ async function getOpenAiKey() {
   } catch { return null; }
 }
 
-// OpenAI gpt-image-1 suporta apenas 3 tamanhos fixos — mapeia pelo aspect ratio
-function openAiSize(orientation) {
-  if (orientation === 'vertical') return '1024x1536';
-  if (orientation === 'square')   return '1024x1024';
-  return '1536x1024'; // landscape e leaderboard
+// Tamanhos suportados por modelo:
+// gpt-image-2: 1024x1024, 1024x1536, 1536x1024
+// gpt-image-1: 1024x1024, 1024x1792, 1792x1024
+function openAiSize(orientation, model) {
+  const isV2 = model === 'gpt-image-2';
+  if (orientation === 'vertical')   return isV2 ? '1024x1536' : '1024x1792';
+  if (orientation === 'square')     return '1024x1024';
+  return isV2 ? '1536x1024' : '1792x1024'; // landscape e leaderboard
 }
 
 async function generateImageWithOpenAI(prompt, orientation, apiKey, model = 'gpt-image-2') {
+  const body = {
+    model,
+    prompt,
+    size: openAiSize(orientation, model),
+    quality: 'high',
+    n: 1,
+  };
+  // gpt-image-1 não retorna b64 por padrão; gpt-image-2 já retorna b64
+  if (model === 'gpt-image-1') body.response_format = 'b64_json';
+
   const res = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt,
-      size: openAiSize(orientation),
-      quality: 'high',
-      n: 1,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`OpenAI API error ${res.status}: ${await res.text()}`);
   const data = await res.json();
