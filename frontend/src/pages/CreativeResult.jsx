@@ -37,12 +37,39 @@ function MarkdownBlock({ text }) {
   );
 }
 
+const aspectClass = {
+  square:    'aspect-square',
+  vertical:  'aspect-[9/16]',
+  landscape: 'aspect-video',
+};
+
+function BannerCard({ banner }) {
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
+      <div className={`w-full overflow-hidden bg-gray-900 ${aspectClass[banner.orientation] || 'aspect-square'}`}>
+        <img src={banner.url} alt={banner.label} className="w-full h-full object-contain" />
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex flex-wrap gap-1">
+          {banner.channels?.map((ch) => (
+            <span key={ch} className="text-xs bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full">{ch}</span>
+          ))}
+        </div>
+        <p className="text-gray-500 text-xs">{banner.label} · {banner.aspectRatio}</p>
+        <a
+          href={banner.url}
+          download={`banner_c${banner.copyIndex ?? 1}_${banner.label.replace('×','x')}.png`}
+          className="btn-secondary text-xs w-full text-center block py-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          ↓ Baixar PNG
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function BannersTab({ banners, bannerErrors, bannerGenerating, bannerStatus, bannerError, bannersLoading, bannerFailed, bannerFailedMsg, onGenerate }) {
-  const aspectClass = {
-    square:    'aspect-square',
-    vertical:  'aspect-[9/16]',
-    landscape: 'aspect-video',
-  };
 
   return (
     <div className="space-y-4">
@@ -83,36 +110,37 @@ function BannersTab({ banners, bannerErrors, bannerGenerating, bannerStatus, ban
       {!banners?.length && !bannerGenerating && !bannersLoading ? (
         <div className="text-center py-8">
           <p className="text-gray-500 text-sm">Nenhum banner gerado ainda.</p>
-          <p className="text-gray-600 text-xs mt-1">Configure a chave do Nano Banana em Configurações e clique em Gerar Banners.</p>
+          <p className="text-gray-600 text-xs mt-1">Configure a chave da API em Configurações e clique em Gerar Banners.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {banners?.length > 0 && <p className="text-sm text-gray-400">{banners.length} banner{banners.length > 1 ? 's' : ''} gerado{banners.length > 1 ? 's' : ''}</p>}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {banners?.map((banner, i) => (
-              <div key={i} className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
-                <div className={`w-full overflow-hidden bg-gray-900 ${aspectClass[banner.orientation] || 'aspect-square'}`}>
-                  <img src={banner.url} alt={banner.label} className="w-full h-full object-contain" />
+        <div className="space-y-6">
+          {banners?.length > 0 && (
+            <p className="text-sm text-gray-400">
+              {banners.length} banner{banners.length > 1 ? 's' : ''} gerado{banners.length > 1 ? 's' : ''}
+            </p>
+          )}
+          {/* Agrupa por copyIndex */}
+          {(() => {
+            const copies = [...new Set((banners || []).map(b => b.copyIndex ?? 1))].sort((a, b) => a - b);
+            if (copies.length <= 1) {
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {banners?.map((banner, i) => <BannerCard key={i} banner={banner} />)}
                 </div>
-                <div className="p-3 space-y-2">
-                  <div className="flex flex-wrap gap-1">
-                    {banner.channels?.map((ch) => (
-                      <span key={ch} className="text-xs bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full">{ch}</span>
-                    ))}
-                  </div>
-                  <p className="text-gray-500 text-xs">{banner.label} · {banner.aspectRatio}</p>
-                  <a
-                    href={banner.url}
-                    download={`banner_${banner.label.replace('×','x')}.png`}
-                    className="btn-secondary text-xs w-full text-center block py-1.5"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    ↓ Baixar PNG
-                  </a>
+              );
+            }
+            return copies.map(ci => (
+              <div key={ci}>
+                <p className="text-xs font-medium text-brand-400 mb-3 uppercase tracking-wide">Criativo {ci}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {banners.filter(b => (b.copyIndex ?? 1) === ci).map((banner, i) => (
+                    <BannerCard key={i} banner={banner} />
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            ));
+          })()}
+        </div>
 
           {bannerErrors?.length > 0 && (
             <div className="space-y-1.5 mt-2">

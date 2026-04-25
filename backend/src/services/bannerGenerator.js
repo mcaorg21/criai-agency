@@ -359,50 +359,48 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
   const logoPart = (logoUrl && bannerProvider === 'gemini') ? await loadLogoAsInlineData(logoUrl) : null;
   const useGcs = await isGcsConfigured();
 
-  const copyVariation = parsedCopies[0];
-  const total = formats.length;
   const colorHex = colorList.slice(0, 4).join(', ');
 
-  onStep?.('banner-generator', `Gerando ${total} banner(s) em paralelo...`);
+  // Gera um banner por copy × por formato
+  const tasks = [];
+  for (let ci = 0; ci < parsedCopies.length; ci++) {
+    for (const fmt of formats) {
+      tasks.push({ copy: parsedCopies[ci], copyIndex: ci + 1, fmt });
+    }
+  }
 
-  // Monta os prompts de cada formato
-  const formatTasks = formats.map((fmt) => {
-    let prompt = refinedPrompts[fmt.label] || buildImagePrompt({
-      copy: copyVariation,
-      brandName,
-      colors: colorList,
-      orientation: fmt.orientation,
-    });
-    prompt += `\n\n---\nBrand color palette (exact hex codes): ${colorHex}.`;
-    prompt += `\n\nTEXT TO RENDER — copy these strings EXACTLY, do NOT translate or change any word (Brazilian Portuguese):
-- Top label: "${copyVariation.topo || ''}"
-- Main headline: "${copyVariation.titulo || copyVariation.topo || ''}"
-- Body: "${(copyVariation.texto_central || '').slice(0, 80)}"
-- CTA button: "${copyVariation.cta || 'Saiba Mais'}"`;
-    if (logoPart) prompt += `\n\nThe attached image is the brand logo. Place it in the top-left corner, intact and recognizable.`;
-    if (observations) prompt += `\n\nMANDATORY client rules (follow without exception):\n${observations}`;
-    return { fmt, prompt };
-  });
+  onStep?.('banner-generator', `Gerando ${tasks.length} banner(s) em paralelo (${parsedCopies.length} criativo(s) × ${formats.length} formato(s))...`);
 
-  // Gera todas as imagens em paralelo
-  const results = await Promise.allSettled(
-    formatTasks.map(async ({ fmt, prompt }) => {
+  const settled = await Promise.allSettled(
+    tasks.map(async ({ copy, copyIndex, fmt }) => {
+      let prompt = refinedPrompts[fmt.label] || buildImagePrompt({
+        copy,
+        brandName,
+        colors: colorList,
+        orientation: fmt.orientation,
+      });
+      prompt += `\n\n---\nBrand color palette (exact hex codes): ${colorHex}.`;
+      prompt += `\n\nTEXT TO RENDER — copy these strings EXACTLY, do NOT translate or change any word (Brazilian Portuguese):
+- Top label: "${copy.topo || ''}"
+- Main headline: "${copy.titulo || copy.topo || ''}"
+- Body: "${(copy.texto_central || '').slice(0, 80)}"
+- CTA button: "${copy.cta || 'Saiba Mais'}"`;
+      if (logoPart) prompt += `\n\nThe attached image is the brand logo. Place it in the top-left corner, intact and recognizable.`;
+      if (observations) prompt += `\n\nMANDATORY client rules (follow without exception):\n${observations}`;
+
       let imageBuffer, imageMime;
-
       if (bannerProvider === 'flux') {
         const { buffer, mime } = await Promise.race([
           generateImageWithFlux(prompt, fmt.width || 1080, fmt.height || 1080, fluxApiKey, fluxModel),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 300s')), 300000)),
         ]);
-        imageBuffer = buffer;
-        imageMime = mime;
+        imageBuffer = buffer; imageMime = mime;
       } else if (bannerProvider === 'openai') {
         const { buffer, mime } = await Promise.race([
           generateImageWithOpenAI(prompt, fmt.orientation, openAiKey, openaiModel),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 300s')), 300000)),
         ]);
-        imageBuffer = buffer;
-        imageMime = mime;
+        imageBuffer = buffer; imageMime = mime;
       } else {
         const contentParts = [{ text: prompt }];
         if (logoPart) contentParts.unshift(logoPart);
@@ -421,7 +419,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
       }
 
       const ext = imageMime.includes('png') ? 'png' : 'jpg';
-      const filename = `creative_${creativeId}_${fmt.label.replace(/[×x]/g, 'x')}_${Date.now()}.${ext}`;
+      const filename = `creative_${creativeId}_c${copyIndex}_${fmt.label.replace(/[×x]/g, 'x')}_${Date.now()}.${ext}`;
       let bannerUrl;
       if (useGcs) bannerUrl = await uploadBannerToGcs(imageBuffer, filename, imageMime);
       if (!bannerUrl) {
@@ -432,25 +430,27 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
       return {
         url: bannerUrl,
         label: fmt.label,
+        copyIndex,
         aspectRatio: fmt.aspectRatio,
         orientation: fmt.orientation,
         channels: fmt.channels,
-        titulo: copyVariation.titulo || copyVariation.topo,
-        cta: copyVariation.cta,
+        titulo: copy.titulo || copy.topo,
+        cta: copy.cta,
       };
     })
   );
 
   const banners = [];
   const errors = [];
-  results.forEach((r, i) => {
-    const fmt = formats[i];
+  settled.forEach((r, i) => {
+    const { copyIndex, fmt } = tasks[i];
     if (r.status === 'fulfilled') {
       banners.push(r.value);
     } else {
-      console.error(`Erro banner ${fmt.label}:`, r.reason.message);
-      errors.push({ label: fmt.label, message: r.reason.message });
-      onStep?.('banner-error', `Erro no formato ${fmt.label}: ${r.reason.message}`);
+      const label = `${fmt.label} Criativo ${copyIndex}`;
+      console.error(`Erro banner ${label}:`, r.reason.message);
+      errors.push({ label, message: r.reason.message });
+      onStep?.('banner-error', `Erro no formato ${label}: ${r.reason.message}`);
     }
   });
 
