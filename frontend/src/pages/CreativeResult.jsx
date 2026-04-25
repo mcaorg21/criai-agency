@@ -140,10 +140,9 @@ function BannersTab({ banners, bannerErrors, bannerGenerating, bannerStatus, ban
               </div>
             ));
           })()}
-        </div>
 
           {bannerErrors?.length > 0 && (
-            <div className="space-y-1.5 mt-2">
+            <div className="space-y-1.5">
               <p className="text-xs text-gray-500 font-medium">Formatos com erro:</p>
               {bannerErrors.map((e, i) => (
                 <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
