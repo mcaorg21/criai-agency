@@ -359,34 +359,34 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
   const logoPart = (logoUrl && bannerProvider === 'gemini') ? await loadLogoAsInlineData(logoUrl) : null;
   const useGcs = await isGcsConfigured();
 
-  const banners = [];
-  const errors = [];
   const copyVariation = parsedCopies[0];
   const total = formats.length;
+  const colorHex = colorList.slice(0, 4).join(', ');
 
-  for (let i = 0; i < total; i++) {
-    const fmt = formats[i];
-    onStep?.('banner-generator', `Gerando banner ${i + 1}/${total} — ${fmt.label} (${fmt.channels.join(', ')})`);
+  onStep?.('banner-generator', `Gerando ${total} banner(s) em paralelo...`);
 
+  // Monta os prompts de cada formato
+  const formatTasks = formats.map((fmt) => {
     let prompt = refinedPrompts[fmt.label] || buildImagePrompt({
       copy: copyVariation,
       brandName,
       colors: colorList,
       orientation: fmt.orientation,
     });
-
-    const colorHex = colorList.slice(0, 4).join(', ');
     prompt += `\n\n---\nBrand color palette (exact hex codes): ${colorHex}.`;
     prompt += `\n\nTEXT TO RENDER — copy these strings EXACTLY, do NOT translate or change any word (Brazilian Portuguese):
 - Top label: "${copyVariation.topo || ''}"
 - Main headline: "${copyVariation.titulo || copyVariation.topo || ''}"
 - Body: "${(copyVariation.texto_central || '').slice(0, 80)}"
 - CTA button: "${copyVariation.cta || 'Saiba Mais'}"`;
-
     if (logoPart) prompt += `\n\nThe attached image is the brand logo. Place it in the top-left corner, intact and recognizable.`;
     if (observations) prompt += `\n\nMANDATORY client rules (follow without exception):\n${observations}`;
+    return { fmt, prompt };
+  });
 
-    try {
+  // Gera todas as imagens em paralelo
+  const results = await Promise.allSettled(
+    formatTasks.map(async ({ fmt, prompt }) => {
       let imageBuffer, imageMime;
 
       if (bannerProvider === 'flux') {
@@ -406,7 +406,6 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
       } else {
         const contentParts = [{ text: prompt }];
         if (logoPart) contentParts.unshift(logoPart);
-
         const result = await Promise.race([
           geminiModel.generateContent({
             contents: [{ role: 'user', parts: contentParts }],
@@ -414,20 +413,15 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
           }),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 60s')), 60000)),
         ]);
-
         const parts = result.response.candidates?.[0]?.content?.parts || [];
         const imagePart = parts.find((p) => p.inlineData?.data);
-        if (!imagePart) {
-          console.warn(`Banner ${fmt.label}: nenhuma imagem retornada pelo Gemini`);
-          continue;
-        }
+        if (!imagePart) throw new Error('Nenhuma imagem retornada pelo Gemini');
         imageBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
         imageMime = imagePart.inlineData.mimeType || 'image/png';
       }
 
       const ext = imageMime.includes('png') ? 'png' : 'jpg';
-      const filename = `creative_${creativeId}_${fmt.orientation}_${Date.now()}.${ext}`;
-
+      const filename = `creative_${creativeId}_${fmt.label.replace(/[×x]/g, 'x')}_${Date.now()}.${ext}`;
       let bannerUrl;
       if (useGcs) bannerUrl = await uploadBannerToGcs(imageBuffer, filename, imageMime);
       if (!bannerUrl) {
@@ -435,7 +429,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
         bannerUrl = `/uploads/banners/${filename}`;
       }
 
-      banners.push({
+      return {
         url: bannerUrl,
         label: fmt.label,
         aspectRatio: fmt.aspectRatio,
@@ -443,13 +437,22 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
         channels: fmt.channels,
         titulo: copyVariation.titulo || copyVariation.topo,
         cta: copyVariation.cta,
-      });
-    } catch (err) {
-      console.error(`Erro banner ${fmt.label}:`, err.message);
-      errors.push({ label: fmt.label, message: err.message });
-      onStep?.('banner-error', `Erro no formato ${fmt.label}: ${err.message}`);
+      };
+    })
+  );
+
+  const banners = [];
+  const errors = [];
+  results.forEach((r, i) => {
+    const fmt = formats[i];
+    if (r.status === 'fulfilled') {
+      banners.push(r.value);
+    } else {
+      console.error(`Erro banner ${fmt.label}:`, r.reason.message);
+      errors.push({ label: fmt.label, message: r.reason.message });
+      onStep?.('banner-error', `Erro no formato ${fmt.label}: ${r.reason.message}`);
     }
-  }
+  });
 
   return { banners, errors };
 }

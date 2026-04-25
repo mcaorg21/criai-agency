@@ -179,7 +179,7 @@ router.get('/:id/generate-banners', async (req, res) => {
         openaiModel: row.openai_model || 'gpt-image-2',
         onStep: (step, message) => send('status', { step, message }),
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na geração de banners')), 180000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na geração de banners')), 600000)),
     ]);
 
     const updated = { ...row.result_json, banners, bannerErrors: errors.length ? errors : undefined, bannerGenerationStatus: 'done' };
