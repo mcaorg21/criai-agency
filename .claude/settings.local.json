@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Read(//c/Users/mcaor/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/.claude/skills/ui-ux-pro-max/**)",
+      "Bash(python scripts/search.py \"AI creative generation SaaS marketing agency dark minimal professional\" --design-system -p \"Criai\" -f markdown)",
+      "Bash(python scripts/search.py \"AI SaaS dashboard dark mode professional tool agency\" --design-system -p \"Criai\" -f markdown)",
+      "Bash(npx vite *)",
+      "Bash(python scripts/search.py \"AI SaaS creative generation marketing dark premium\" --design-system -p \"Criai\" -f markdown)",
+      "Bash(python scripts/search.py \"glassmorphism dark premium\" --domain style -n 3 -f markdown)",
+      "Bash(python scripts/search.py \"SaaS marketing agency dark\" --domain color -n 3 -f markdown)",
+      "Bash(npm install *)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)"
+    ]
+  }
+}
