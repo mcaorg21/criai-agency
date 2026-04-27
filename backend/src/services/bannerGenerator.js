@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 import pool from '../db/pool.js';
 import { loadSkill } from './skillLoader.js';
 import { uploadBannerToGcs, isGcsConfigured } from './gcsUploader.js';
@@ -147,6 +148,46 @@ async function loadLogoAsInlineData(logoUrl) {
     return { inlineData: { data: readFileSync(logoPath).toString('base64'), mimeType } };
   } catch {
     return null;
+  }
+}
+
+async function loadLogoBuffer(logoUrl) {
+  try {
+    if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
+      const res = await fetch(logoUrl);
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    }
+    const { readFileSync, existsSync } = await import('fs');
+    const logoPath = join(__dirname, '../../', logoUrl.replace(/^\//, ''));
+    if (!existsSync(logoPath)) return null;
+    return readFileSync(logoPath);
+  } catch {
+    return null;
+  }
+}
+
+// Compõe a logo no canto superior esquerdo do banner gerado
+async function compositeLogoOnBanner(bannerBuffer, logoUrl, bannerWidth) {
+  try {
+    const logoRaw = await loadLogoBuffer(logoUrl);
+    if (!logoRaw) return bannerBuffer;
+
+    const maxLogoWidth = Math.min(Math.round(bannerWidth * 0.22), 220);
+    const padding = Math.max(16, Math.round(bannerWidth * 0.04));
+
+    const logoResized = await sharp(logoRaw)
+      .resize(maxLogoWidth, null, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+
+    return await sharp(bannerBuffer)
+      .composite([{ input: logoResized, top: padding, left: padding, blend: 'over' }])
+      .png()
+      .toBuffer();
+  } catch (err) {
+    console.warn('Logo compositing falhou:', err.message);
+    return bannerBuffer;
   }
 }
 
@@ -355,7 +396,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
     ? colors.split(',').map(s => s.trim()).filter(Boolean)
     : (colors || []);
 
-  // Prepara logo inline se disponível (só relevante para Gemini)
+  // Para Gemini: logo como dado multimodal no input; para Flux/OpenAI: composição pós-geração via sharp
   const logoPart = (logoUrl && bannerProvider === 'gemini') ? await loadLogoAsInlineData(logoUrl) : null;
   const useGcs = await isGcsConfigured();
 
@@ -395,12 +436,18 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 300s')), 300000)),
         ]);
         imageBuffer = buffer; imageMime = mime;
+        // Compõe logo sobre o banner gerado (Flux é text-to-image, não aceita imagem no input)
+        if (logoUrl) imageBuffer = await compositeLogoOnBanner(imageBuffer, logoUrl, fmt.width || 1080);
+        imageMime = 'image/png';
       } else if (bannerProvider === 'openai') {
         const { buffer, mime } = await Promise.race([
           generateImageWithOpenAI(prompt, fmt.orientation, openAiKey, openaiModel),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após 300s')), 300000)),
         ]);
         imageBuffer = buffer; imageMime = mime;
+        // Compõe logo sobre o banner gerado (OpenAI images/generations não aceita imagem no input)
+        if (logoUrl) imageBuffer = await compositeLogoOnBanner(imageBuffer, logoUrl, fmt.width || 1080);
+        imageMime = 'image/png';
       } else {
         const contentParts = [{ text: prompt }];
         if (logoPart) contentParts.unshift(logoPart);
