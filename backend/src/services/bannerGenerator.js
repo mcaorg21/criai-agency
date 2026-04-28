@@ -68,7 +68,7 @@ async function getAnthropicKey() {
   } catch { return process.env.ANTHROPIC_API_KEY; }
 }
 
-async function buildPromptsWithSkill({ copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider }) {
+async function buildPromptsWithSkill({ copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider, layoutZones }) {
   const skillMd = loadSkill('image-prompt-builder');
   const apiKey = await getAnthropicKey();
   const client = new Anthropic({ apiKey });
@@ -91,6 +91,13 @@ async function buildPromptsWithSkill({ copies, channelAdaptations, brandName, co
     ? `\n## REGRA CRÍTICA SOBRE LOGO\nA logo da marca SERÁ adicionada como camada separada após a geração da imagem. Por isso, NÃO inclua nos prompts nenhuma instrução para desenhar, gerar ou renderizar logo, wordmark, nome da marca como elemento gráfico, texto de marca ou símbolo da empresa. Os prompts devem instruir o modelo a deixar a área reservada LIVRE (sem qualquer elemento de identidade visual).`
     : '';
 
+  const layoutInstruction = layoutZones?.length
+    ? `\n\n## Layout visual definido pelo usuário — SEGUIR EXATAMENTE nos prompts de imagem:
+As posições são em % do banner (x=0%,y=0% = canto superior esquerdo):
+${layoutZones.map(z => `- **${z.label}**: x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}% do banner`).join('\n')}
+Traduza essas proporções em instruções de composição visual nos prompts. Ex: se Headline está em y=28% com h=18%, ele ocupa o terço superior-central do banner.`
+    : '';
+
   const userMessage = `Gere prompts de imagem para os seguintes criativos:
 
 ## Dados da marca
@@ -106,7 +113,7 @@ O texto de apoio (supporting text / body / descrição abaixo do headline) deve 
 ${copies}
 ${channelAdaptations ? `\n## Adaptações por canal (use estas copies específicas para cada formato)\n${channelAdaptations}` : ''}
 ## Formatos necessários (um prompt por formato)
-${channelList}${observations ? `\n\n## Regras obrigatórias do cliente (RESPEITAR EM TODOS OS PROMPTS)\n${observations}` : ''}${logoInstruction}`;
+${channelList}${observations ? `\n\n## Regras obrigatórias do cliente (RESPEITAR EM TODOS OS PROMPTS)\n${observations}` : ''}${logoInstruction}${layoutInstruction}`;
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
@@ -449,7 +456,7 @@ TEXT TO RENDER ON BANNER — copy these strings EXACTLY, character by character,
 IMPORTANT: The texts above are in Brazilian Portuguese. Render them verbatim with correct spelling. Do not translate or modify any word.`;
 }
 
-export async function generateBanners({ creativeId, copies, channelAdaptations, channels, brandName, colors, productService, tone, logoUrl, logoPosition = 'top', logoInvert = false, observations, onStep, bannerProvider = 'gemini', fluxModel: fluxModelOverride, openaiModel = 'gpt-image-2', replicateModel: replicateModelOverride }) {
+export async function generateBanners({ creativeId, copies, channelAdaptations, channels, brandName, colors, productService, tone, logoUrl, logoPosition = 'top', logoInvert = false, observations, onStep, bannerProvider = 'gemini', fluxModel: fluxModelOverride, openaiModel = 'gpt-image-2', replicateModel: replicateModelOverride, layoutZones }) {
   // Resolve provider credentials
   let geminiApiKey = null;
   let fluxApiKey = null;
@@ -502,7 +509,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
   let refinedPrompts = {};
   try {
     const skillOutput = await buildPromptsWithSkill({
-      copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider,
+      copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider, layoutZones,
     });
     refinedPrompts = extractPrompts(skillOutput, formats);
   } catch (err) {

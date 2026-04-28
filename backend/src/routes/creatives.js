@@ -98,6 +98,7 @@ async function runBannerGeneration(creativeId, results, row) {
       fluxModel: row.flux_model || null,
       openaiModel: row.openai_model || 'gpt-image-2',
       replicateModel: row.replicate_model || null,
+      layoutZones: row.layout_zones || null,
     });
 
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
@@ -173,6 +174,7 @@ router.get('/:id/generate-banners', async (req, res) => {
       generateBanners({
         creativeId: req.params.id,
         copies: row.result_json.copies,
+        channelAdaptations: row.result_json.channelAdaptations,
         channels: row.channels,
         brandName: row.brand_name,
         colors: row.selected_colors?.length ? row.selected_colors : row.color_palette,
@@ -186,6 +188,7 @@ router.get('/:id/generate-banners', async (req, res) => {
         fluxModel: row.flux_model || null,
         openaiModel: row.openai_model || 'gpt-image-2',
         replicateModel: row.replicate_model || null,
+        layoutZones: row.layout_zones || null,
         onStep: (step, message) => send('status', { step, message }),
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na geração de banners')), 600000)),
