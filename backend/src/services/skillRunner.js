@@ -34,52 +34,8 @@ async function runSkill(skillName, systemExtra, userMessage, { maxTokens = 4096 
   return message.content[0].text;
 }
 
-// Mapeamento canal → formato de banner (espelha bannerGenerator.js)
-const BANNER_CHANNEL_FORMATS = {
-  'Instagram Feed':  { label: '1080×1080', width: 1080, height: 1080 },
-  'Facebook Feed':   { label: '1080×1080', width: 1080, height: 1080 },
-  'Instagram Story': { label: '1080×1920', width: 1080, height: 1920 },
-  'Facebook Story':  { label: '1080×1920', width: 1080, height: 1920 },
-  'TikTok':          { label: '1080×1920', width: 1080, height: 1920 },
-  'YouTube':         { label: '1280×720',  width: 1280, height: 720  },
-};
 
-const GOOGLE_DISPLAY_BANNER_FORMATS = [
-  { label: '300×250',  width: 300,  height: 250,  hint: 'medium rectangle' },
-  { label: '336×280',  width: 336,  height: 280,  hint: 'large rectangle'  },
-  { label: '728×90',   width: 728,  height: 90,   hint: 'leaderboard'      },
-  { label: '300×600',  width: 300,  height: 600,  hint: 'half page'        },
-  { label: '320×100',  width: 320,  height: 100,  hint: 'mobile banner'    },
-];
-
-function getBannerFormats(channels) {
-  const seen = new Set();
-  const formats = [];
-  for (const ch of (channels || [])) {
-    if (ch === 'Email Marketing') continue;
-    if (ch === 'Google Display') {
-      for (const gd of GOOGLE_DISPLAY_BANNER_FORMATS) {
-        if (!seen.has(gd.label)) {
-          seen.add(gd.label);
-          formats.push({ channel: `Google Display ${gd.label} (${gd.hint})`, ...gd });
-        }
-      }
-      continue;
-    }
-    const fmt = BANNER_CHANNEL_FORMATS[ch];
-    if (!fmt) continue;
-    if (!seen.has(fmt.label)) {
-      seen.add(fmt.label);
-      formats.push({ channel: ch, ...fmt });
-    } else {
-      const existing = formats.find(f => f.label === fmt.label);
-      if (existing) existing.channel += ` / ${ch}`;
-    }
-  }
-  return formats;
-}
-
-export async function generateCreative({ client: clientData, brief, onStep, channels, simulateAudience = true, emailOptions = {} }) {
+export async function generateCreative({ client: clientData, brief, onStep, channels, simulateAudience = true, emailOptions = {}, numCopies, layoutZones }) {
   const results = {};
 
   const activeColors = clientData.selected_colors?.length
@@ -115,77 +71,30 @@ export async function generateCreative({ client: clientData, brief, onStep, chan
   );
 
   // Etapa 2 – Copy
+  const nCopies = numCopies || brief.num_copies || 3;
   onStep?.('display-copy-builder', 'Gerando copies para criativos...');
   results.copies = await runSkill(
     'display-copy-builder',
     `${brandContext}\n${briefContext}\n## Análise da marca\n${results.brandAnalysis}`,
-    'Gere copies para os criativos de display com base no briefing e na análise da marca.'
+    `Gere exatamente ${nCopies} variação${nCopies > 1 ? 'ões' : ''} de criativo de display com base no briefing e na análise da marca.`
   );
 
   // Etapa 3 – Formatação visual
   onStep?.('display-creative-formatter', 'Formatando estrutura visual...');
+  const layoutInstruction = layoutZones?.length
+    ? `\n\n## Layout visual definido pelo usuário — SEGUIR EXATAMENTE:\nO usuário definiu as seguintes zonas com posições e tamanhos em % do banner:\n${layoutZones.map(z => `- **${z.label}**: posição x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}% do banner`).join('\n')}\nUse estas proporções para definir a hierarquia e disposição visual de cada elemento.`
+    : '';
   results.visualFormat = await runSkill(
     'display-creative-formatter',
     `${brandContext}\n${briefContext}`,
-    `Com base nas copies abaixo, defina a estrutura visual de cada criativo:\n\n${results.copies}`
+    `Com base nas copies abaixo, defina a estrutura visual de cada criativo:\n\n${results.copies}
+
+## RESTRIÇÕES OBRIGATÓRIAS DE TEXTO — SEGUIR À RISCA:
+- Headline: máximo 6 palavras
+- Texto central (apoio): MÁXIMO 30 CARACTERES — se não couber, omita. Ex: "A partir de R$49/mês"
+- CTA: máximo 4 palavras
+- NUNCA escreva mais de 30 caracteres no campo Texto central — esse texto vai direto para geração de imagem e será cortado se for maior${layoutInstruction}`
   );
-
-  // Etapa 4 – Banner Renderer (templates HTML/CSS por formato — uma call por formato em paralelo)
-  onStep?.('display-banner-renderer', 'Criando templates HTML dos banners...');
-  const bannerFormats = getBannerFormats(channels);
-
-  const brandColors = {
-    primary:    activeColors[0] || '#1a1a2e',
-    secondary:  activeColors[1] || '#ffffff',
-    accent:     activeColors[2] || activeColors[1] || '#e85d04',
-    background: activeColors[3] || activeColors[0] || '#1a1a2e',
-  };
-
-  const bannerRendererResults = await Promise.all(
-    bannerFormats.map(async (fmt) => {
-      const fmtInput = JSON.stringify({
-        brand: {
-          name:    clientData.brand_name,
-          logo_url: clientData.logo_url || null,
-          colors:  brandColors,
-          font:    'Inter',
-        },
-        campaign: {
-          objective: brief.campaign_objective,
-          audience:  brief.target_audience,
-          tone:      brief.desired_tone,
-        },
-        formats: [{ name: `${fmt.channel.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${fmt.width}x${fmt.height}`, width: fmt.width, height: fmt.height }],
-      }, null, 2);
-
-      const html = await runSkill(
-        'display-banner-renderer',
-        `${brandContext}\n${briefContext}`,
-        `Gere um template HTML/CSS completo para o formato: ${fmt.channel} ${fmt.label}
-
-## Input
-\`\`\`json
-${fmtInput}
-\`\`\`
-
-## Copies aprovadas (extraia headline, subheadline, description e CTA)
-${results.copies}
-
-## Estrutura visual
-${results.visualFormat}
-
-## INSTRUÇÕES:
-- Retorne APENAS o HTML completo (sem heading, sem explicação, só o bloco \`\`\`html ... \`\`\`)
-- width=${fmt.width}px height=${fmt.height}px fixos
-- CSS inline ou <style> interno — zero dependências externas
-- Textos reais em português extraídos das copies — nunca placeholder`,
-        { maxTokens: 4096 }
-      );
-      return { label: `${fmt.channel} ${fmt.label}`, width: fmt.width, height: fmt.height, html };
-    })
-  );
-
-  results.bannerRenderer = bannerRendererResults;
 
   // Etapa 5 – Adaptação por canal
   onStep?.('multi-channel-adapter', 'Adaptando para cada canal...');
@@ -243,6 +152,36 @@ ${results.visualFormat}
       'audience-reaction-simulator',
       `${brandContext}\n${briefContext}`,
       `Simule a reação do público "${brief.target_audience}" ao ver os criativos:\n\n${results.copies}`
+    );
+  }
+
+  // Etapa 9 – Posts para redes sociais (apenas se houver canal de mídia social selecionado)
+  const SOCIAL_CHANNELS = ['Instagram Feed', 'Instagram Story', 'Facebook Feed', 'Facebook Story', 'TikTok', 'LinkedIn'];
+  const hasSocial = channels?.some(c => SOCIAL_CHANNELS.includes(c));
+  if (hasSocial) {
+    onStep?.('social-post-generator', 'Gerando posts para redes sociais...');
+    const socialChannels = channels.filter(c => SOCIAL_CHANNELS.includes(c));
+    results.socialPosts = await runSkill(
+      'social-post-generator',
+      `${brandContext}\n${briefContext}`,
+      `Gere posts para as redes sociais selecionadas: ${socialChannels.join(', ')}
+
+## Análise da marca
+${results.brandAnalysis}
+
+## Copies principais
+${results.copies}
+
+## Copies curtas
+${results.shortCopies}
+
+## Adaptações por canal
+${results.channelAdaptations}
+
+## Avaliação de performance
+${results.performanceEval}
+${results.audienceReaction ? `\n## Reação do público\n${results.audienceReaction}` : ''}`,
+      { maxTokens: 8096 }
     );
   }
 

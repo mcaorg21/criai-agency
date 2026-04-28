@@ -19,12 +19,12 @@ const TABS = [
   { key: 'brandAnalysis', label: 'Análise da Marca' },
   { key: 'copies', label: 'Copies' },
   { key: 'visualFormat', label: 'Formato Visual' },
-  { key: 'bannerRenderer', label: 'Banner HTML' },
   { key: 'channelAdaptations', label: 'Por Canal' },
   { key: 'shortCopies', label: 'Copies Curtas' },
   { key: 'emailHtml', label: 'Email HTML' },
   { key: 'performanceEval', label: 'Performance' },
   { key: 'audienceReaction', label: 'Reação do Público' },
+  { key: 'socialPosts', label: 'Posts Sociais' },
   { key: 'banners', label: '🖼 Banners PNG' },
 ];
 
@@ -45,15 +45,20 @@ const aspectClass = {
 
 function BannerCard({ banner }) {
   return (
-    <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
+    <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 w-96 shrink-0">
       <div className={`w-full overflow-hidden bg-gray-900 ${aspectClass[banner.orientation] || 'aspect-square'}`}>
         <img src={banner.url} alt={banner.label} className="w-full h-full object-contain" />
       </div>
       <div className="p-3 space-y-2">
-        <div className="flex flex-wrap gap-1">
-          {banner.channels?.map((ch) => (
-            <span key={ch} className="text-xs bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full">{ch}</span>
-          ))}
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex flex-wrap gap-1">
+            {banner.channels?.map((ch) => (
+              <span key={ch} className="text-xs bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full">{ch}</span>
+            ))}
+          </div>
+          {banner.copyIndex != null && (
+            <span className="text-[10px] text-gray-600 shrink-0">C{banner.copyIndex}</span>
+          )}
         </div>
         <p className="text-gray-500 text-xs">{banner.label} · {banner.aspectRatio}</p>
         <a
@@ -119,27 +124,9 @@ function BannersTab({ banners, bannerErrors, bannerGenerating, bannerStatus, ban
               {banners.length} banner{banners.length > 1 ? 's' : ''} gerado{banners.length > 1 ? 's' : ''}
             </p>
           )}
-          {/* Agrupa por copyIndex */}
-          {(() => {
-            const copies = [...new Set((banners || []).map(b => b.copyIndex ?? 1))].sort((a, b) => a - b);
-            if (copies.length <= 1) {
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {banners?.map((banner, i) => <BannerCard key={i} banner={banner} />)}
-                </div>
-              );
-            }
-            return copies.map(ci => (
-              <div key={ci}>
-                <p className="text-xs font-medium text-brand-400 mb-3 uppercase tracking-wide">Criativo {ci}</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {banners.filter(b => (b.copyIndex ?? 1) === ci).map((banner, i) => (
-                    <BannerCard key={i} banner={banner} />
-                  ))}
-                </div>
-              </div>
-            ));
-          })()}
+          <div className="flex flex-wrap gap-4">
+            {(banners || []).map((banner, i) => <BannerCard key={i} banner={banner} />)}
+          </div>
 
           {bannerErrors?.length > 0 && (
             <div className="space-y-1.5">
@@ -217,12 +204,17 @@ function extractHtml(raw) {
 function BannerRendererTab({ data }) {
   if (!data) return <p className="text-gray-500 text-sm italic">Não gerado.</p>;
 
-  // New format: array of { label, width, height, html }
+  // New format: array of { label, width, height, html, error? }
   if (Array.isArray(data)) {
     if (!data.length) return <p className="text-gray-500 text-sm italic">Nenhum formato gerado.</p>;
     return (
       <div className="space-y-6">
-        {data.map((item, i) => (
+        {data.map((item, i) => item.error ? (
+          <div key={i} className="rounded-lg border border-red-800/40 bg-red-950/20 px-4 py-3">
+            <p className="text-sm font-medium text-red-400">{item.label}</p>
+            <p className="text-xs text-red-500 mt-1">{item.error}</p>
+          </div>
+        ) : (
           <BannerHtmlBlock key={i} label={item.label} html={extractHtml(item.html)} />
         ))}
       </div>
@@ -538,7 +530,7 @@ export default function CreativeResult() {
           <div className="flex gap-1 mb-4 flex-wrap">
             {TABS.filter(({ key }) => {
               if (key === 'emailHtml') return !!results.emailHtml;
-              if (key === 'bannerRenderer') return !!results.bannerRenderer;
+              if (key === 'socialPosts') return !!results.socialPosts;
               return true;
             }).map(({ key, label }) => (
               <button
@@ -570,8 +562,6 @@ export default function CreativeResult() {
               />
             ) : activeTab === 'emailHtml' ? (
               <HtmlPreview html={results.emailHtml} />
-            ) : activeTab === 'bannerRenderer' ? (
-              <BannerRendererTab data={results.bannerRenderer} />
             ) : (
               <>
                 <div className="flex justify-end mb-3">

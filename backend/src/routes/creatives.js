@@ -37,12 +37,15 @@ async function runGeneration(creativeId) {
       desired_tone: row.desired_tone,
       channels: row.channels,
       observations: row.observations,
+      num_copies: row.num_copies || 3,
     };
 
     const results = await generateCreative({
       client: clientData,
       brief,
       channels: row.channels,
+      numCopies: row.num_copies || 3,
+      layoutZones: row.layout_zones || null,
       simulateAudience: row.simulate_audience ?? true,
       emailOptions: {
         unsubscribeFooter: row.email_unsubscribe_footer ?? true,
@@ -88,10 +91,13 @@ async function runBannerGeneration(creativeId, results, row) {
       productService: row.product_or_service,
       tone: row.desired_tone,
       logoUrl: row.use_logo ? (row.selected_logo_url || row.logo_url) : null,
+      logoPosition: row.logo_position || 'top',
+      logoInvert: row.logo_invert || false,
       observations: row.observations || null,
       bannerProvider: row.banner_provider || 'gemini',
       fluxModel: row.flux_model || null,
       openaiModel: row.openai_model || 'gpt-image-2',
+      replicateModel: row.replicate_model || null,
     });
 
     const current = await pool.query('SELECT result_json FROM creatives WHERE id=$1', [creativeId]);
@@ -173,10 +179,13 @@ router.get('/:id/generate-banners', async (req, res) => {
         productService: row.product_or_service,
         tone: row.desired_tone,
         logoUrl: row.use_logo ? (row.selected_logo_url || row.logo_url) : null,
+        logoPosition: row.logo_position || 'top',
+        logoInvert: row.logo_invert || false,
         observations: row.observations || null,
         bannerProvider: row.banner_provider || 'gemini',
         fluxModel: row.flux_model || null,
         openaiModel: row.openai_model || 'gpt-image-2',
+        replicateModel: row.replicate_model || null,
         onStep: (step, message) => send('status', { step, message }),
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na geração de banners')), 600000)),
@@ -221,16 +230,17 @@ router.post('/:id/cancel', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model } = req.body;
+  const { target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model, replicate_model, logo_position, logo_invert, num_copies, layout_zones } = req.body;
   try {
     const result = await pool.query(
       `UPDATE creatives SET target_audience=$1, campaign_objective=$2, main_offer=$3,
        desired_tone=$4, channels=$5, observations=$6, use_logo=$7, selected_colors=$8,
        simulate_audience=$9, email_unsubscribe_footer=$10, email_utm_source=$11,
        email_utm_medium=$12, email_utm_campaign=$13, selected_logo_url=$14,
-       banner_provider=$15, flux_model=$16, openai_model=$17, status='pending', result_json=NULL, updated_at=NOW()
-       WHERE id=$18 RETURNING *`,
-      [target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, selected_logo_url || null, banner_provider || 'gemini', flux_model || null, openai_model || 'gpt-image-2', req.params.id]
+       banner_provider=$15, flux_model=$16, openai_model=$17, logo_position=$18, logo_invert=$19,
+       replicate_model=$20, num_copies=$21, layout_zones=$22, status='pending', result_json=NULL, updated_at=NOW()
+       WHERE id=$23 RETURNING *`,
+      [target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, selected_logo_url || null, banner_provider || 'gemini', flux_model || null, openai_model || 'gpt-image-2', logo_position || 'top', logo_invert ?? false, replicate_model || null, num_copies || 3, layout_zones?.length ? JSON.stringify(layout_zones) : null, req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Criativo não encontrado' });
     res.json(result.rows[0]);
@@ -242,14 +252,14 @@ router.put('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model } = req.body;
+  const { client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model, replicate_model, logo_position, logo_invert, num_copies, layout_zones } = req.body;
   if (!client_id) return res.status(400).json({ error: 'client_id é obrigatório' });
 
   try {
     const result = await pool.query(
-      `INSERT INTO creatives (client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
-      [client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, selected_logo_url || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, banner_provider || 'gemini', flux_model || null, openai_model || 'gpt-image-2']
+      `INSERT INTO creatives (client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo, selected_colors, selected_logo_url, simulate_audience, email_unsubscribe_footer, email_utm_source, email_utm_medium, email_utm_campaign, banner_provider, flux_model, openai_model, logo_position, logo_invert, replicate_model, num_copies, layout_zones)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
+      [client_id, target_audience, campaign_objective, main_offer, desired_tone, channels, observations, use_logo ?? false, selected_colors || null, selected_logo_url || null, simulate_audience ?? true, email_unsubscribe_footer ?? true, email_utm_source || null, email_utm_medium || 'email', email_utm_campaign || null, banner_provider || 'gemini', flux_model || null, openai_model || 'gpt-image-2', logo_position || 'top', logo_invert ?? false, replicate_model || null, num_copies || 3, layout_zones?.length ? JSON.stringify(layout_zones) : null]
     );
     const creative = result.rows[0];
     res.status(201).json(creative);

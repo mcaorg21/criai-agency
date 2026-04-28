@@ -22,6 +22,7 @@ const SKILL_NAMES = [
   'email-marketing-html-builder',
   'creative-performance-evaluator',
   'audience-reaction-simulator',
+  'social-post-generator',
   'image-prompt-builder',
 ];
 

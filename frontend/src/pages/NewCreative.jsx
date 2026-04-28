@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import BannerLayoutEditor from '../components/BannerLayoutEditor';
 
 const OPENAI_MODELS = [
   { value: 'gpt-image-2', label: 'gpt-image-2', desc: 'Mais recente · Alta qualidade' },
@@ -18,6 +19,15 @@ const FLUX_MODELS = [
   { value: 'flux-kontext-max',   label: 'Flux Kontext Max',   price: '',          cost: 'Caro',       color: 'text-orange-400'  },
   { value: 'flux-pro-1.1-ultra', label: 'Flux Pro 1.1 Ultra', price: '',          cost: 'Muito caro', color: 'text-red-400'     },
   { value: 'flux-dev',           label: 'Flux Dev',           price: 'Grátis',    cost: 'Grátis',     color: 'text-gray-400'    },
+];
+
+const REPLICATE_MODELS = [
+  { value: 'flux-pro-1.1',       label: 'FLUX 1.1 Pro',       price: '$0.04/img', cost: 'Moderado',   color: 'text-yellow-400'  },
+  { value: 'flux-pro-1.1-ultra', label: 'FLUX 1.1 Pro Ultra', price: '$0.06/img', cost: 'Caro',       color: 'text-orange-400'  },
+  { value: 'flux-kontext-pro',   label: 'Flux Kontext Pro',   price: '$0.04/img', cost: 'Moderado',   color: 'text-yellow-400'  },
+  { value: 'flux-kontext-max',   label: 'Flux Kontext Max',   price: '$0.08/img', cost: 'Caro',       color: 'text-orange-400'  },
+  { value: 'flux-dev',           label: 'Flux Dev',           price: '$0.003/img',cost: 'Barato',     color: 'text-emerald-400' },
+  { value: 'flux-schnell',       label: 'Flux Schnell',       price: '$0.001/img',cost: 'Muito barato',color: 'text-emerald-400'},
 ];
 
 const TONE_OPTIONS = [
@@ -66,6 +76,11 @@ export default function NewCreative() {
     banner_provider: 'gemini',
     flux_model: 'flux-2-pro',
     openai_model: 'gpt-image-2',
+    replicate_model: 'flux-pro-1.1',
+    logo_position: 'top-left',
+    logo_invert: false,
+    num_copies: 3,
+    layout_zones: [],
   });
 
   useEffect(() => {
@@ -120,9 +135,12 @@ export default function NewCreative() {
         desired_tone: form.desired_tone.join(', '),
         use_logo: !!selectedLogoUrl,
         selected_logo_url: selectedLogoUrl || null,
+        logo_position: selectedLogoUrl ? form.logo_position : 'top',
+        logo_invert: selectedLogoUrl ? form.logo_invert : false,
         banner_provider: form.banner_provider,
         flux_model: form.banner_provider === 'flux' ? form.flux_model : null,
         openai_model: form.banner_provider === 'openai' ? form.openai_model : null,
+        replicate_model: form.banner_provider === 'replicate' ? form.replicate_model : null,
       });
       navigate(`/creatives/${creative.id}`);
     } catch (err) {
@@ -196,7 +214,17 @@ export default function NewCreative() {
                     ))}
                   </div>
                   {selectedLogoUrl && (
-                    <p className="text-xs text-gray-500 mt-2">Logo selecionada será usada nos banners e no email HTML</p>
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.logo_invert}
+                          onChange={(e) => setForm(f => ({ ...f, logo_invert: e.target.checked }))}
+                          className="w-4 h-4 accent-brand-500"
+                        />
+                        <span className="text-xs text-gray-400">Inverter cor da logo (para branco)</span>
+                      </label>
+                    </div>
                   )}
                 </div>
               )}
@@ -328,6 +356,31 @@ export default function NewCreative() {
               </button>
             ))}
           </div>
+
+          {form.channels.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-700/60">
+              <label className="label mb-2">Quantas variações de criativo?</label>
+              <div className="flex gap-2">
+                {[1, 3, 6].map(n => (
+                  <button
+                    type="button"
+                    key={n}
+                    onClick={() => setForm(f => ({ ...f, num_copies: n }))}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${
+                      form.num_copies === n
+                        ? 'bg-brand-500/10 border-brand-500 text-brand-400'
+                        : 'border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-1.5">
+                {form.num_copies === 1 ? 'Gera 1 criativo — mais rápido e barato' : form.num_copies === 3 ? 'Gera 3 variações para testar ângulos diferentes' : 'Gera 6 variações — máximo de opções para A/B test'}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Opções de Email Marketing */}
@@ -375,9 +428,10 @@ export default function NewCreative() {
             <p className="section-title">Gerador de banners PNG</p>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { value: 'gemini', label: 'Gemini', desc: 'Google AI' },
-                { value: 'openai', label: 'OpenAI', desc: form.openai_model || 'gpt-image-2' },
-                { value: 'flux',   label: 'Flux',   desc: FLUX_MODELS.find(m => m.value === form.flux_model)?.label || form.flux_model || 'FLUX.2 Pro' },
+                { value: 'gemini',    label: 'Gemini',    desc: 'Google AI' },
+                { value: 'openai',   label: 'OpenAI',    desc: form.openai_model || 'gpt-image-2' },
+                { value: 'flux',     label: 'Flux (BFL)', desc: FLUX_MODELS.find(m => m.value === form.flux_model)?.label || 'FLUX.2 Pro' },
+                { value: 'replicate',label: 'Replicate', desc: REPLICATE_MODELS.find(m => m.value === form.replicate_model)?.label || 'FLUX 1.1 Pro' },
               ].map(({ value, label, desc }) => (
                 <button
                   type="button"
@@ -422,7 +476,7 @@ export default function NewCreative() {
 
             {form.banner_provider === 'flux' && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">Modelo Flux</p>
+                <p className="text-xs text-gray-500 mb-2">Modelo Flux (via BFL)</p>
                 <div className="grid grid-cols-1 gap-1.5">
                   {FLUX_MODELS.map(m => (
                     <button
@@ -436,6 +490,34 @@ export default function NewCreative() {
                       }`}
                     >
                       <span className={`text-sm font-medium ${form.flux_model === m.value ? 'text-brand-400' : 'text-gray-300'}`}>
+                        {m.label}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {m.price && <span className="text-xs text-gray-600">{m.price}</span>}
+                        <span className={`text-xs font-medium ${m.color}`}>{m.cost}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {form.banner_provider === 'replicate' && (
+              <div>
+                <p className="text-xs text-gray-500 mb-2">Modelo Flux via Replicate</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {REPLICATE_MODELS.map(m => (
+                    <button
+                      type="button"
+                      key={m.value}
+                      onClick={() => setForm(f => ({ ...f, replicate_model: m.value }))}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg border text-left transition-all ${
+                        form.replicate_model === m.value
+                          ? 'bg-brand-500/10 border-brand-500'
+                          : 'border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <span className={`text-sm font-medium ${form.replicate_model === m.value ? 'text-brand-400' : 'text-gray-300'}`}>
                         {m.label}
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
@@ -475,6 +557,18 @@ export default function NewCreative() {
               <p className="text-xs text-gray-500 mt-0.5">A IA simula como a persona reagiria aos criativos gerados</p>
             </div>
           </label>
+        </div>
+
+        {/* Layout visual */}
+        <div className="card space-y-3">
+          <div>
+            <p className="section-title">Layout do banner (opcional)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Defina a disposição visual dos elementos. A IA usará como referência para montar o criativo.</p>
+          </div>
+          <BannerLayoutEditor
+            value={form.layout_zones}
+            onChange={(zones) => setForm(f => ({ ...f, layout_zones: zones }))}
+          />
         </div>
 
         <button type="submit" className="btn-primary w-full py-3 text-base" disabled={loading}>

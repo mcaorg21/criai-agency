@@ -39,6 +39,14 @@ const API_CONFIGS = [
     hint: 'Usada para geração das imagens PNG dos banners via gpt-image-1.',
     link: 'platform.openai.com → API Keys',
   },
+  {
+    key: 'replicate_api_key',
+    title: 'Replicate — Banners via Flux',
+    label: 'Chave de API (r8_...)',
+    placeholder: 'r8_...',
+    hint: 'Alternativa ao BFL direto para modelos Flux. Suporta FLUX 1.1 Pro, Kontext Pro/Max, Dev e Schnell.',
+    link: 'replicate.com → Account → API tokens',
+  },
 ];
 
 function StatusDot({ active }) {
