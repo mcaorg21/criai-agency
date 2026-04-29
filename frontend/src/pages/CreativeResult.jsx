@@ -44,6 +44,30 @@ const aspectClass = {
 };
 
 function BannerCard({ banner }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDownloading(true);
+    try {
+      const res = await fetch(banner.url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `banner_c${banner.copyIndex ?? 1}_${banner.label.replace('×', 'x')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(banner.url, '_blank');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 w-96 shrink-0">
       <div className={`w-full overflow-hidden bg-gray-900 ${aspectClass[banner.orientation] || 'aspect-square'}`}>
@@ -61,14 +85,14 @@ function BannerCard({ banner }) {
           )}
         </div>
         <p className="text-gray-500 text-xs">{banner.label} · {banner.aspectRatio}</p>
-        <a
-          href={banner.url}
-          download={`banner_c${banner.copyIndex ?? 1}_${banner.label.replace('×','x')}.png`}
-          className="btn-secondary text-xs w-full text-center block py-1.5"
-          onClick={(e) => e.stopPropagation()}
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="btn-secondary text-xs w-full text-center block py-1.5 disabled:opacity-50"
         >
-          ↓ Baixar PNG
-        </a>
+          {downloading ? 'Baixando...' : '↓ Baixar PNG'}
+        </button>
       </div>
     </div>
   );
