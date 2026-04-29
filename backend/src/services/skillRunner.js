@@ -84,6 +84,14 @@ export async function generateCreative({ client: clientData, brief, onStep, chan
   const layoutInstruction = layoutZones?.length
     ? `\n\n## Layout visual definido pelo usuário — SEGUIR EXATAMENTE:\nO usuário definiu as seguintes zonas com posições e tamanhos em % do banner:\n${layoutZones.map(z => `- **${z.label}**: posição x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}% do banner`).join('\n')}\nUse estas proporções para definir a hierarquia e disposição visual de cada elemento.`
     : '';
+
+  // Calcula limite de texto_central baseado no tamanho da zona definida pelo usuário
+  const textoCentralZone = layoutZones?.find(z => z.type === 'texto_central');
+  const textoCentralMaxChars = textoCentralZone
+    ? Math.round(textoCentralZone.w * textoCentralZone.h / 50)  // zona maior = mais chars
+    : 40;
+  const textoCentralLimit = Math.max(40, Math.min(120, textoCentralMaxChars));
+
   results.visualFormat = await runSkill(
     'display-creative-formatter',
     `${brandContext}\n${briefContext}`,
@@ -91,9 +99,8 @@ export async function generateCreative({ client: clientData, brief, onStep, chan
 
 ## RESTRIÇÕES OBRIGATÓRIAS DE TEXTO — SEGUIR À RISCA:
 - Headline: máximo 6 palavras
-- Texto central (apoio): MÁXIMO 30 CARACTERES — se não couber, omita. Ex: "A partir de R$49/mês"
-- CTA: máximo 4 palavras
-- NUNCA escreva mais de 30 caracteres no campo Texto central — esse texto vai direto para geração de imagem e será cortado se for maior${layoutInstruction}`
+- Texto central (apoio): máximo ${textoCentralLimit} caracteres${textoCentralZone ? ` (zona grande definida pelo usuário: ${Math.round(textoCentralZone.w)}% × ${Math.round(textoCentralZone.h)}%)` : ' — se não couber, omita'}. Deve ser uma frase COMPLETA e coerente, nunca cortada no meio.
+- CTA: máximo 4 palavras${layoutInstruction}`
   );
 
   // Etapa 5 – Adaptação por canal

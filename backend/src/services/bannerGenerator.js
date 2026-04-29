@@ -409,7 +409,7 @@ function parseCopies(copiesText) {
     const titulo = get('titulo') || get('headline') || get('manchete');
     const topo = get('topo') || get('subtítulo') || get('subtitulo');
     const cta = get('cta') || get('call.to.action');
-    const texto_central = (get('texto_central') || get('texto central') || get('body')).slice(0, 30);
+    const texto_central = get('texto_central') || get('texto central') || get('body');
     if (titulo || topo) return [{ topo, titulo, texto_central, cta }];
     return [];
   }
@@ -421,7 +421,7 @@ function parseCopies(copiesText) {
     return {
       topo: get('topo'),
       titulo: get('titulo'),
-      texto_central: get('texto_central').slice(0, 30),
+      texto_central: get('texto_central'),
       cta: get('cta'),
     };
   }).filter((c) => c.titulo || c.topo);
@@ -450,7 +450,7 @@ VISUAL DESIGN:
 TEXT TO RENDER ON BANNER — copy these strings EXACTLY, character by character, do not translate, do not change spelling:
 - Small top label (small caps, ${accentColor}): "${copy.topo || ''}"
 - Main headline (very large bold white text): "${copy.titulo || copy.topo}"
-- Supporting text (small, 80% white opacity): "${(copy.texto_central || '').slice(0, 30)}"
+- Supporting text (small, 80% white opacity): "${copy.texto_central || ''}"
 - CTA button text (${accentColor} rounded button, bold white): "${copy.cta || 'Saiba Mais'}"
 
 IMPORTANT: The texts above are in Brazilian Portuguese. Render them verbatim with correct spelling. Do not translate or modify any word.`;
@@ -552,7 +552,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
       prompt += `\n\nTEXT TO RENDER — copy these strings EXACTLY, do NOT translate or change any word (Brazilian Portuguese):
 - Top label: "${copy.topo || ''}"
 - Main headline: "${copy.titulo || copy.topo || ''}"
-- Body: "${(copy.texto_central || '').slice(0, 30)}"
+- Body: "${copy.texto_central || ''}"
 - CTA button: "${copy.cta || 'Saiba Mais'}"`;
       const posLabel = { 'top': 'top-left', 'top-left': 'top-left', 'top-center': 'top-center', 'top-right': 'top-right', 'bottom': 'bottom-left', 'bottom-left': 'bottom-left', 'bottom-center': 'bottom-center', 'bottom-right': 'bottom-right' }[logoPosition] || 'top-left';
       if (logoUrl && bannerProvider !== 'gemini') {
