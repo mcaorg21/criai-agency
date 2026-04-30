@@ -477,6 +477,25 @@ export default function CreativeResult() {
           <p className="text-gray-400 text-sm mt-0.5 line-clamp-1">{creative.campaign_objective}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            to={`/creatives/${id}/edit`}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-brand-500 hover:text-brand-400 transition-colors"
+          >
+            ✎ Editar
+          </Link>
+          <button
+            onClick={async () => {
+              try {
+                const dup = await api.creatives.duplicate(id);
+                navigate(`/creatives/${dup.id}`);
+              } catch (e) {
+                alert('Erro ao duplicar: ' + e.message);
+              }
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-brand-500 hover:text-brand-400 transition-colors"
+          >
+            ⧉ Duplicar
+          </button>
           <button
             onClick={async () => {
               if (!confirm('Deletar este criativo? Esta ação não pode ser desfeita.')) return;
