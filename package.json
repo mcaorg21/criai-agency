@@ -2,8 +2,8 @@
   "name": "criai-app",
   "private": true,
   "scripts": {
-    "dev": "concurrently --names \"back,front\" --prefix-colors \"cyan,magenta\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
-    "start": "concurrently --names \"back,front\" --prefix-colors \"cyan,magenta\" \"npm run start --prefix backend\" \"npm run dev --prefix frontend\""
+    "dev": "concurrently --names \"back,front\" --prefix-colors \"cyan,magenta\" --restart-tries 10 --restart-after 3000 \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "start": "concurrently --names \"back,front\" --prefix-colors \"cyan,magenta\" --restart-tries 10 --restart-after 3000 \"npm run start --prefix backend\" \"npm run dev --prefix frontend\""
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

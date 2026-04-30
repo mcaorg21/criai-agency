@@ -1,16 +1,29 @@
 const BASE = '/api';
 
-async function req(method, path, body) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
+async function req(method, path, body, { retries = 3, retryDelay = 2000 } = {}) {
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${BASE}${path}`, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || res.statusText);
+      }
+      return res.json();
+    } catch (err) {
+      lastErr = err;
+      // Só retenta em erros de rede (ECONNRESET, Failed to fetch, etc.)
+      const isNetwork = err instanceof TypeError;
+      if (!isNetwork || attempt === retries) throw err;
+      console.warn(`[api] ${method} ${path} falhou (tentativa ${attempt}/${retries}), retentando em ${retryDelay * attempt}ms...`, err.message);
+      await new Promise(r => setTimeout(r, retryDelay * attempt));
+    }
   }
-  return res.json();
+  throw lastErr;
 }
 
 export const api = {
