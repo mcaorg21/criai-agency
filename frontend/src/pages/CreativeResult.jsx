@@ -352,6 +352,24 @@ function HtmlPreview({ html }) {
   );
 }
 
+function playDoneSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [[523, 0], [659, 0.18], [784, 0.36]].forEach(([freq, when]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + when);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + when + 0.5);
+      osc.start(ctx.currentTime + when);
+      osc.stop(ctx.currentTime + when + 0.5);
+    });
+  } catch {}
+}
+
 export default function CreativeResult() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -379,6 +397,7 @@ export default function CreativeResult() {
         bannerIntervalRef.current = null;
         setBannersLoading(false);
         setCreative((c) => ({ ...c, result_json: updated.result_json }));
+        if (status === 'done') playDoneSound();
       }
     }, 5000);
   };
@@ -438,6 +457,7 @@ export default function CreativeResult() {
             bannerGenerationStatus: 'done',
           },
         }));
+        playDoneSound();
       },
       (msg) => {
         setBannerGenerating(false);
