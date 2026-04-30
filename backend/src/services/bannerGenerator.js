@@ -68,7 +68,7 @@ async function getAnthropicKey() {
   } catch { return process.env.ANTHROPIC_API_KEY; }
 }
 
-async function buildPromptsWithSkill({ copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider, layoutZones }) {
+async function buildPromptsWithSkill({ copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider, layoutZones, strictLayout = false }) {
   const skillMd = loadSkill('image-prompt-builder');
   const apiKey = await getAnthropicKey();
   const client = new Anthropic({ apiKey });
@@ -92,10 +92,24 @@ async function buildPromptsWithSkill({ copies, channelAdaptations, brandName, co
     : '';
 
   const layoutInstruction = layoutZones?.length
-    ? `\n\n## Layout visual definido pelo usuário — SEGUIR EXATAMENTE nos prompts de imagem:
-As posições são em % do banner (x=0%,y=0% = canto superior esquerdo):
-${layoutZones.map(z => `- **${z.label}**: x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}% do banner`).join('\n')}
-Traduza essas proporções em instruções de composição visual nos prompts. Ex: se Headline está em y=28% com h=18%, ele ocupa o terço superior-central do banner.`
+    ? strictLayout
+      ? `\n\n## ⚠️ LAYOUT ESTRITO — POSICIONAMENTO OBRIGATÓRIO NOS PROMPTS
+O usuário definiu um layout preciso. Cada prompt de imagem DEVE descrever exatamente onde cada elemento fica usando linguagem posicional absoluta em inglês. NÃO recomponha livremente.
+
+Zonas (% do banner, origem canto superior-esquerdo):
+${layoutZones.map(z => {
+  const x1 = Math.round(z.x), x2 = Math.round(z.x + z.w);
+  const y1 = Math.round(z.y), y2 = Math.round(z.y + z.h);
+  const hPos = x1 < 20 ? 'left' : x2 > 80 ? 'right' : 'center';
+  const vPos = y1 < 30 ? 'top' : y2 > 70 ? 'bottom' : 'middle';
+  return `- **${z.label}**: x ${x1}%→${x2}%, y ${y1}%→${y2}% → no prompt: "${vPos}-${hPos} area, from ${y1}% to ${y2}% height, spanning ${x2-x1}% width"`;
+}).join('\n')}
+
+Para cada zona, use no prompt a frase posicional indicada acima. Não invente composição livre.`
+      : `\n\n## Layout visual definido pelo usuário — usar como referência nos prompts:
+Posições em % do banner (x=0%,y=0% = canto superior esquerdo):
+${layoutZones.map(z => `- **${z.label}**: x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}%`).join('\n')}
+Traduza essas proporções em instruções de composição visual nos prompts.`
     : '';
 
   const userMessage = `Gere prompts de imagem para os seguintes criativos:
@@ -456,7 +470,7 @@ TEXT TO RENDER ON BANNER — copy these strings EXACTLY, character by character,
 IMPORTANT: The texts above are in Brazilian Portuguese. Render them verbatim with correct spelling. Do not translate or modify any word.`;
 }
 
-export async function generateBanners({ creativeId, copies, channelAdaptations, channels, brandName, colors, productService, tone, logoUrl, logoPosition = 'top', logoInvert = false, observations, onStep, bannerProvider = 'gemini', fluxModel: fluxModelOverride, openaiModel = 'gpt-image-2', replicateModel: replicateModelOverride, layoutZones }) {
+export async function generateBanners({ creativeId, copies, channelAdaptations, channels, brandName, colors, productService, tone, logoUrl, logoPosition = 'top', logoInvert = false, observations, onStep, bannerProvider = 'gemini', fluxModel: fluxModelOverride, openaiModel = 'gpt-image-2', replicateModel: replicateModelOverride, layoutZones, strictLayout = false }) {
   // Resolve provider credentials
   let geminiApiKey = null;
   let fluxApiKey = null;
@@ -509,7 +523,7 @@ export async function generateBanners({ creativeId, copies, channelAdaptations, 
   let refinedPrompts = {};
   try {
     const skillOutput = await buildPromptsWithSkill({
-      copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider, layoutZones,
+      copies, channelAdaptations, brandName, colors, productService, tone, channels, observations, logoUrl, bannerProvider, layoutZones, strictLayout,
     });
     refinedPrompts = extractPrompts(skillOutput, formats);
   } catch (err) {

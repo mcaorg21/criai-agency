@@ -81,6 +81,7 @@ export default function NewCreative() {
     logo_invert: false,
     num_copies: 3,
     layout_zones: [],
+    strict_layout: false,
   });
 
   useEffect(() => {
@@ -569,6 +570,20 @@ export default function NewCreative() {
             value={form.layout_zones}
             onChange={(zones) => setForm(f => ({ ...f, layout_zones: zones }))}
           />
+          {form.layout_zones?.length > 0 && (
+            <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-gray-700/60">
+              <input
+                type="checkbox"
+                checked={form.strict_layout}
+                onChange={(e) => setForm(f => ({ ...f, strict_layout: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 accent-brand-500 shrink-0"
+              />
+              <div>
+                <p className="text-sm text-gray-200 font-medium">Seguir layout com precisão</p>
+                <p className="text-xs text-gray-500 mt-0.5">A IA receberá instruções de posicionamento absoluto para cada elemento. Use quando quiser que o banner respeite fielmente o layout definido acima.</p>
+              </div>
+            </label>
+          )}
         </div>
 
         <button type="submit" className="btn-primary w-full py-3 text-base" disabled={loading}>

@@ -35,7 +35,7 @@ async function runSkill(skillName, systemExtra, userMessage, { maxTokens = 4096 
 }
 
 
-export async function generateCreative({ client: clientData, brief, onStep, channels, simulateAudience = true, emailOptions = {}, numCopies, layoutZones }) {
+export async function generateCreative({ client: clientData, brief, onStep, channels, simulateAudience = true, emailOptions = {}, numCopies, layoutZones, strictLayout = false }) {
   const results = {};
 
   const activeColors = clientData.selected_colors?.length
@@ -82,7 +82,9 @@ export async function generateCreative({ client: clientData, brief, onStep, chan
   // Etapa 3 – Formatação visual
   onStep?.('display-creative-formatter', 'Formatando estrutura visual...');
   const layoutInstruction = layoutZones?.length
-    ? `\n\n## Layout visual definido pelo usuário — SEGUIR EXATAMENTE:\nO usuário definiu as seguintes zonas com posições e tamanhos em % do banner:\n${layoutZones.map(z => `- **${z.label}**: posição x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}% do banner`).join('\n')}\nUse estas proporções para definir a hierarquia e disposição visual de cada elemento.`
+    ? strictLayout
+      ? `\n\n## ⚠️ MODO LAYOUT ESTRITO — OBRIGATÓRIO SEM EXCEÇÕES\nO usuário definiu um layout visual preciso. CADA ELEMENTO DEVE OCUPAR EXATAMENTE a área especificada — não reorganize, não invente composição diferente, não aplique hierarquia visual própria.\n\nZonas definidas (posição e tamanho em % do banner, origem no canto superior-esquerdo):\n${layoutZones.map(z => `- **${z.label}**: x=${Math.round(z.x)}%→${Math.round(z.x+z.w)}%, y=${Math.round(z.y)}%→${Math.round(z.y+z.h)}% (tamanho ${Math.round(z.w)}×${Math.round(z.h)}%)`).join('\n')}\n\nEstes intervalos devem ser descritos no prompt com linguagem posicional absoluta: "from X% to Y% of banner height", "occupying left third", "spanning full width at bottom 20%", etc. O modelo de imagem deve receber instrução clara de onde cada elemento fica.`
+      : `\n\n## Layout visual definido pelo usuário — seguir como referência:\nO usuário definiu as seguintes zonas com posições e tamanhos em % do banner:\n${layoutZones.map(z => `- **${z.label}**: posição x=${Math.round(z.x)}% y=${Math.round(z.y)}%, tamanho ${Math.round(z.w)}% × ${Math.round(z.h)}% do banner`).join('\n')}\nUse estas proporções para definir a hierarquia e disposição visual de cada elemento.`
     : '';
 
   // Calcula limite de texto_central baseado no tamanho da zona definida pelo usuário
